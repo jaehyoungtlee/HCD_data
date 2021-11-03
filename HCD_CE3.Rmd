@@ -1,0 +1,569 @@
+---
+title: "HCD cost-effectiveness model"
+author: "Tim Lee"
+date: "7/20/2021"
+output: html_document
+always_allow_html: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+pacman::p_load(rio,
+               here,
+               tidyverse,
+               ggplot2,
+               plotly,
+               png
+               )
+```
+ 
+
+## Setting parameters
+```{r}
+# initial intervention costs
+ideo_cost_mid = 356000
+ideo_cost_low = ideo_cost_mid * 0.5
+ideo_cost_high = ideo_cost_mid * 1.5
+
+# implementation costs
+low_cost = 0.1 # in USD
+mid_cost = 1 # in USD
+utirc_cost = 0.42 # actual cost per person in USD in U-TIRC study
+mid_high_cost = 20 # in USD
+high_cost = 100 # in USD
+
+# number of persons reached
+x_personsreached <- seq(100, 10000, 100)
+x_personsreached_more <- seq(100, 100000, 100)
+
+# daly per person
+y_dalypp <- seq(0.005, 0.5, 0.005)
+
+# icer functions
+# actual cost (ideo_cost_mid and utirc_cost)
+icer_actual <- function(x_personsreached_more){
+    ((ideo_cost_mid + (utirc_cost * x_personsreached_more))/x_personsreached_more)/y_dalypp
+}
+
+
+# low cost/low cost
+icer_lc_lc <- function(x_personsreached){
+    ((ideo_cost_low + (low_cost * x_personsreached))/x_personsreached)/y_dalypp
+}
+# low cost/mid cost
+icer_lc_mc <- function(x_personsreached){
+    ((ideo_cost_low + (mid_cost * x_personsreached))/x_personsreached)/y_dalypp
+}
+# low cost/mid high cost
+icer_lc_mhc <- function(x_personsreached){
+    ((ideo_cost_low + (mid_high_cost * x_personsreached))/x_personsreached)/y_dalypp
+}
+
+# low cost/high cost
+icer_lc_hc <- function(x_personsreached){
+    ((ideo_cost_low + (high_cost * x_personsreached))/x_personsreached)/y_dalypp
+}
+
+
+# mid cost/low cost
+icer_mc_lc <- function(x_personsreached){
+    ((ideo_cost_mid + (low_cost * x_personsreached))/x_personsreached)/y_dalypp
+}
+# mid cost/mid cost
+icer_mc_mc <- function(x_personsreached){
+    ((ideo_cost_mid + (mid_cost * x_personsreached))/x_personsreached)/y_dalypp
+}
+# mid cost/midhigh cost
+icer_mc_mhc <- function(x_personsreached){
+    ((ideo_cost_mid + (mid_high_cost * x_personsreached))/x_personsreached)/y_dalypp
+}
+# mid cost/high cost
+icer_mc_hc <- function(x_personsreached){
+    ((ideo_cost_mid + (high_cost * x_personsreached))/x_personsreached)/y_dalypp
+}
+
+
+# high cost/low cost
+icer_hc_lc <- function(x_personsreached){
+    ((ideo_cost_high + (low_cost * x_personsreached))/x_personsreached)/y_dalypp
+}
+# high cost/mid cost
+icer_hc_mc <- function(x_personsreached){
+    ((ideo_cost_high + (mid_cost * x_personsreached))/x_personsreached)/y_dalypp
+}
+# high cost/midhigh cost
+icer_hc_mhc <- function(x_personsreached){
+    ((ideo_cost_high + (mid_high_cost * x_personsreached))/x_personsreached)/y_dalypp
+}
+# high cost/high cost
+icer_hc_hc <- function(x_personsreached){
+    ((ideo_cost_high + (high_cost * x_personsreached))/x_personsreached)/y_dalypp
+}
+
+z_icer_actual <- lapply(x_personsreached_more, icer_actual)
+
+z_icer_lc_lc <- lapply(x_personsreached, icer_lc_lc)
+z_icer_lc_mc <- lapply(x_personsreached, icer_lc_mc)
+z_icer_lc_hc <- lapply(x_personsreached, icer_lc_hc)
+
+z_icer_mc_lc <- lapply(x_personsreached, icer_mc_lc)
+z_icer_mc_mc <- lapply(x_personsreached, icer_mc_mc)
+z_icer_mc_hc <- lapply(x_personsreached, icer_mc_hc)
+
+z_icer_hc_lc <- lapply(x_personsreached, icer_hc_lc)
+z_icer_hc_mc <- lapply(x_personsreached, icer_hc_mc)
+z_icer_hc_hc <- lapply(x_personsreached, icer_hc_hc)
+
+```
+
+```{r}
+# plot labels
+x_axis <- list(
+    showgrid = T,
+    title = "Individuals reached",
+    mirror = "all"
+)
+
+y_axis <- list(
+    showgrid = T,
+    title = "DALYs averted per individual reached",
+    mirror = "all"
+)
+```
+
+## Figure 2: convert PNG to PDF
+```{r}
+pdf("fig2.pdf", width = 10, height = 7)
+fig2 <- readPNG(here("images", "fig2.png"))
+plot(as.raster(fig2), interpolate = FALSE, asp = NA)
+dev.off()
+```
+
+## Actual cost based on U-TIRC study, Fig 3
+```{r}
+actual <- data.frame(x_personsreached_more,
+                         y_dalypp,
+                         z_icer_actual)
+
+actual_plot <- actual %>% 
+    plot_ly(x = x_personsreached_more,
+            y = y_dalypp,
+            z = z_icer_actual,
+            colorscale = "Electric",
+            type = "contour"[showlegend = TRUE],
+            autocontour = F,
+            contours = list(
+                start = 0,
+                end = 10000,
+                size = 500
+                )) %>%
+    layout(
+        title = "U-TIRC Intervention Cost",
+        legend = "ICER",
+           yaxis = list(title = y_axis,
+                        rangemode = "tozero",
+                        type = "log",
+                        legend = list(title = "ICER")),
+           xaxis = list(title = x_axis,
+                        rangemode = "tozero")
+           )
+
+pdf("figure3.pdf",
+    width = 10,
+    height = 7)
+
+actual_plot
+
+dev.off()
+```
+
+#### Fig3: print PDF ####
+```{r}
+pdf("fig3.pdf", width = 10, height = 7, pointsize = 14)
+fig3 <- readPNG(here("Figures", "fig3.png"))
+plot(as.raster(fig3), interpolate = FALSE, asp = NA)
+
+text(-130, 40, "DALYs averted per individual reached", srt = 90) # y-axis
+text(60, 300, "Individuals reached") # x-axis
+text(700, 250, "ICER ($/DALY averted", srt = 90) # legend
+dev.off()
+```
+
+## Low cost / low cost
+```{r}
+lc_lc <- data.frame(x_personsreached,
+                         y_dalypp,
+                         z_icer_lc_lc)
+
+lc_lc %>% 
+    plot_ly(x = x_personsreached,
+            y = y_dalypp,
+            z = z_icer_lc_lc,
+            colorscale = "Jet",
+            type = "contour",
+            autocontour = F,
+            contours = list(
+                start = 0,
+                end = 4000,
+                size = 500#,
+                #coloring = "heatmap"
+                )
+    ) %>%
+    layout(title = "Low HCD/Low Intervention Cost")
+```
+
+## Low cost / mid cost
+```{r}
+lc_mc <- data.frame(x_personsreached,
+                         y_dalypp,
+                         z_icer_lc_mc)
+
+lc_mc %>% 
+    plot_ly(x = x_personsreached,
+            y = y_dalypp,
+            z = z_icer_lc_mc,
+            colorscale = "Jet",
+            type = "contour",
+            autocontour = F,
+            contours = list(
+                start = 0,
+                end = 4000,
+                size = 500)
+    ) %>%
+    layout(title = "Low HCD/ Mid Intervention Cost")
+```
+
+## Low cost / high cost
+```{r}
+lc_hc <- data.frame(x_personsreached,
+                         y_dalypp,
+                         z_icer_lc_hc)
+
+lc_hc %>% 
+    plot_ly(x = x_personsreached,
+            y = y_dalypp,
+            z = z_icer_lc_hc,
+            colorscale = "Jet",
+            type = "contour",
+            autocontour = F,
+            contours = list(
+                start = 0,
+                end = 4000,
+                size = 500)
+    ) %>%
+    layout(title = "Low HCD/ High Intervention Cost")
+```
+
+## Mid cost / low cost
+```{r}
+mc_lc <- data.frame(x_personsreached,
+                         y_dalypp,
+                         z_icer_mc_lc)
+
+mc_lc %>% 
+    plot_ly(x = x_personsreached,
+            y = y_dalypp,
+            z = z_icer_mc_lc,
+            colorscale = "Jet",
+            type = "contour",
+            autocontour = F,
+            contours = list(
+                start = 0,
+                end = 4000,
+                size = 500)
+    ) %>%
+    layout(title = "Mid HCD/Low Intervention Cost")#,
+           #yaxis = y_axis)
+```
+
+## Mid cost / mid cost
+```{r}
+mc_mc <- data.frame(x_personsreached,
+                         y_dalypp,
+                         z_icer_mc_mc)
+
+mc_mc %>% 
+    plot_ly(x = x_personsreached,
+            y = y_dalypp,
+            z = z_icer_mc_mc,
+            colorscale = "Jet",
+            type = "contour",
+            autocontour = F,
+            contours = list(
+                start = 0,
+                end = 4000,
+                size = 500)
+    ) %>%
+    layout(title = "Mid HCD/Mid Intervention Cost")
+```
+
+## Mid cost / high cost
+```{r}
+mc_hc <- data.frame(x_personsreached,
+                         y_dalypp,
+                         z_icer_mc_hc)
+
+mc_hc %>% 
+    plot_ly(x = x_personsreached,
+            y = y_dalypp,
+            z = z_icer_mc_hc,
+            colorscale = "Jet",
+            type = "contour",
+            autocontour = F,
+            contours = list(
+                start = 0,
+                end = 4000,
+                size = 500)
+    ) %>%
+    layout(title = "Mid HCD/High Intervention Cost")
+```
+
+## High cost / low cost
+```{r}
+hc_lc <- data.frame(x_personsreached,
+                         y_dalypp,
+                         z_icer_hc_lc)
+
+hc_lc %>% 
+    plot_ly(x = x_personsreached,
+            y = y_dalypp,
+            z = z_icer_hc_lc,
+            colorscale = "Jet",
+            type = "contour",
+            autocontour = F,
+            contours = list(
+                start = 0,
+                end = 4000,
+                size = 500)
+    ) %>%
+    layout(title = "High HCD/ Low Intervention Cost")
+```
+
+## High cost / mid cost
+```{r}
+hc_mc <- data.frame(x_personsreached,
+                         y_dalypp,
+                         z_icer_hc_mc)
+
+hc_mc %>% 
+    plot_ly(x = x_personsreached,
+            y = y_dalypp,
+            z = z_icer_hc_mc,
+            colorscale = "Jet",
+            type = "contour",
+            autocontour = F,
+            contours = list(
+                start = 0,
+                end = 4000,
+                size = 500)
+    ) %>%
+    layout(title = "High HCD/Mid Intervention Cost")#,
+           #xaxis = x_axis)
+```
+
+## High cost / high cost
+```{r}
+hc_hc <- data.frame(x_personsreached,
+                         y_dalypp,
+                         z_icer_hc_hc)
+
+hc_hc %>% 
+    plot_ly(x = x_personsreached,
+            y = y_dalypp,
+            z = z_icer_hc_hc,
+            colorscale = "Jet",
+            type = "contour",
+            autocontour = F,
+            contours = list(
+                start = 0,
+                end = 4000,
+                size = 500)
+    ) %>%
+    layout(title = "High HCD/High Intervention Cost")
+```
+
+
+## 3x3 grid
+```{r}
+here("images", pdf("hcd_ce_grid.pdf"))
+par(mfrow = c(3, 3))
+# op <- par(mar=rep(1, 4))
+op <- par(mar = c(1, 0.5, 1, 0.5))
+
+# low
+lc_lc <- readPNG(here("images", "lc_lc.png"))
+plot(as.raster(lc_lc), interpolate = FALSE, asp = NA)
+
+lc_mc <- readPNG(here("images", "lc_mc.png"))
+plot(as.raster(lc_mc), interpolate = FALSE, asp = NA)
+
+lc_hc <- readPNG(here("images", "lc_hc.png"))
+plot(as.raster(lc_hc), interpolate = FALSE, asp = NA)
+
+# mid
+mc_lc <- readPNG(here("images", "mc_lc.png"))
+plot(as.raster(mc_lc), interpolate = FALSE, asp = NA)
+
+mc_mc <- readPNG(here("images", "mc_mc.png"))
+plot(as.raster(mc_mc), interpolate = FALSE, asp = NA)
+
+mc_hc <- readPNG(here("images", "mc_hc.png"))
+plot(as.raster(mc_hc), interpolate = FALSE, asp = NA)
+
+# high
+hc_lc <- readPNG(here("images", "hc_lc.png"))
+plot(as.raster(hc_lc), interpolate = FALSE, asp = NA)
+
+hc_mc <- readPNG(here("images", "hc_mc.png"))
+plot(as.raster(hc_mc), interpolate = FALSE, asp = NA)
+
+hc_hc <- readPNG(here("images", "hc_hc.png"))
+plot(as.raster(hc_hc), interpolate = FALSE, asp = NA)
+
+par(op)
+
+text(-150, 15.5, "Study", font = 3)
+text(220, 15.5, "Treatment Delay [95% CI]", font = 3)
+
+dev.off()
+```
+## Table 2 Calculations
+```{r}
+y_dalypp = 0.05
+# Incr C-E, 0.05 DALYs averted per person, 2000 people reached
+icer_lc_lc(2000)
+icer_lc_mc(2000)
+icer_lc_hc(2000)
+
+icer_mc_lc(2000)
+icer_mc_mc(2000)
+icer_mc_hc(2000)
+
+icer_hc_lc(2000)
+icer_hc_mc(2000)
+icer_hc_hc(2000)
+
+icer_lc_mhc(2000)
+icer_mc_mhc(2000)
+icer_hc_mhc(2000)
+```
+```{r}
+# daly functions
+# low cost/low cost
+daly_lc_lc <- function(x_personsreached, z_icer){
+    ((ideo_cost_low + (low_cost * x_personsreached))/x_personsreached)/z_icer
+}
+# low cost/mid cost
+daly_lc_mc <- function(x_personsreached, z_icer){
+    ((ideo_cost_low + (mid_cost * x_personsreached))/x_personsreached)/z_icer
+}
+# low cost/midhigh cost
+daly_lc_mhc <- function(x_personsreached, z_icer){
+    ((ideo_cost_low + (mid_high_cost * x_personsreached))/x_personsreached)/z_icer
+}
+# low cost/high cost
+daly_lc_hc <- function(x_personsreached, z_icer){
+    ((ideo_cost_low + (high_cost * x_personsreached))/x_personsreached)/z_icer
+}
+
+
+
+# mid cost/low cost
+daly_mc_lc <- function(x_personsreached, z_icer){
+    ((ideo_cost_mid + (low_cost * x_personsreached))/x_personsreached)/z_icer
+}
+# mid cost/mid cost
+daly_mc_mc <- function(x_personsreached, z_icer){
+    ((ideo_cost_mid + (mid_cost * x_personsreached))/x_personsreached)/z_icer
+}
+# mid cost/midhigh cost
+daly_mc_mhc <- function(x_personsreached, z_icer){
+    ((ideo_cost_mid + (mid_high_cost * x_personsreached))/x_personsreached)/z_icer
+}
+# mid cost/high cost
+daly_mc_hc <- function(x_personsreached, z_icer){
+    ((ideo_cost_mid + (high_cost * x_personsreached))/x_personsreached)/z_icer
+}
+
+
+# high cost/low cost
+daly_hc_lc <- function(x_personsreached, z_icer){
+    ((ideo_cost_high + (low_cost * x_personsreached))/x_personsreached)/z_icer
+}
+# high cost/mid cost
+daly_hc_mc <- function(x_personsreached, z_icer){
+    ((ideo_cost_high + (mid_cost * x_personsreached))/x_personsreached)/z_icer
+}
+# high cost/midhigh cost
+daly_hc_mhc <- function(x_personsreached, z_icer){
+    ((ideo_cost_high + (mid_high_cost * x_personsreached))/x_personsreached)/z_icer
+}
+# high cost/high cost
+daly_hc_hc <- function(x_personsreached, z_icer){
+    ((ideo_cost_high + (high_cost * x_personsreached))/x_personsreached)/z_icer
+}
+
+# $1000/DALY - DALYs averted
+daly_lc_lc(2000, 1000)
+daly_lc_mc(2000, 1000)
+daly_lc_hc(2000, 1000)
+
+daly_mc_lc(2000, 1000)
+daly_mc_mc(2000, 1000)
+daly_mc_hc(2000, 1000)
+
+daly_hc_lc(2000, 1000)
+daly_hc_mc(2000, 1000)
+daly_hc_hc(2000, 1000)
+
+
+# $500/DALY - DALYs averted
+daly_lc_lc(2000, 500)
+daly_lc_mc(2000, 500)
+daly_lc_hc(2000, 500)
+
+daly_mc_lc(2000, 500)
+daly_mc_mc(2000, 500)
+daly_mc_hc(2000, 500)
+
+daly_hc_lc(2000, 500)
+daly_hc_mc(2000, 500)
+daly_hc_hc(2000, 500)
+
+```
+
+```{r}
+# $20 midhigh cost
+daly_lc_mhc(2000, 1000)
+daly_mc_mhc(2000, 1000)
+daly_hc_mhc(2000, 1000)
+
+daly_lc_mhc(2000, 500)
+daly_mc_mhc(2000, 500)
+daly_hc_mhc(2000, 500)
+```
+
+```{r}
+# personsreached functions
+mid_high_cost = 20
+x_pr <- function(y_dalypp, z_icer, ideo, interv){
+    ideo/((y_dalypp * z_icer) - interv)
+}
+
+# low cost
+x_pr(0.05, 500, ideo_cost_low, low_cost)
+x_pr(0.05, 500, ideo_cost_low, mid_cost)
+x_pr(0.05, 500, ideo_cost_low, mid_high_cost)
+
+# mid cost
+x_pr(0.05, 500, ideo_cost_mid, low_cost)
+x_pr(0.05, 500, ideo_cost_mid, mid_cost)
+x_pr(0.05, 500, ideo_cost_mid, mid_high_cost)
+
+# high cost
+x_pr(0.05, 500, ideo_cost_high, low_cost)
+x_pr(0.05, 500, ideo_cost_high, mid_cost)
+x_pr(0.05, 500, ideo_cost_high, mid_high_cost)
+```
+
